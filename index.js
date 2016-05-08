@@ -1,8 +1,11 @@
 
-var mkdirp = require('mkdirp'),
+var mkdirp  = require('mkdirp'),
+    chalk   = require('chalk'),
     request = require('request'),
     fs      = require('fs'),
-    _       = require('lodash');
+    _       = require('lodash'),
+    http    = require('http'),
+    url     = require('url');
 
 var mainFontsFolder = "fonts";
 var stylesFolder = "css";
@@ -12,7 +15,7 @@ var stylesLocation = stylesFolder + '/'+ stylesFileName + '.' + stylesFileExt;
 
 var fonts = [{
     "fontName": "Open Sans",
-    "fontVersions": ["300", "400","600", "700", "300italic", "400italic"],
+    "fontVersions": ["200", "400","600", "700", "300italic", "400italic"],
     "fontSubset": null
   },{
     "fontName": "Lato",
@@ -23,6 +26,8 @@ var fonts = [{
     "fontVersions": ["400"],
     "fontSubset": null
   }]
+
+var googleFontsBase = "http://fonts.googleapis.com/css?family=";
 
 var userAgentMap = [{
     extension: 'ttf',
@@ -67,31 +72,53 @@ var cssTemplate = [];
 
 
 // Getting the font
-loopFonts(fonts, function(options, fontOptions, ext){
-  fs.writeFile(stylesLocation, cssTemplate);
-  loopFontUrls(options, fontOptions, ext, function(fontUrl, fontOptions, ext){
-    downloadFont(fontUrl, fontOptions, ext)
-  });
+exists(fonts, function(font, googleFontsUrl){
+  isFont(font, googleFontsUrl, function(font){
+    loopFonts(font, function(options, fontOptions, ext){
+      loopFontUrls(options, fontOptions, ext, function(fontUrl, fontOptions, ext){
+        downloadFont(fontUrl, fontOptions, ext)
+      });
+    })
+  })
 })
 
 
 
+function exists(fonts, cb) {
+  for(var i = 0; i < fonts.length; i++) {
+    var font = fonts[i];
+    var fontName = font.fontName.replace(' ', '+');
+    var googleFontsUrl = googleFontsBase + fontName;
 
+    cb(font, googleFontsUrl)
+
+  }
+}
+
+function isFont(font, googleFontsUrl, cb){
+  request(googleFontsUrl, function (error, response, body) {
+    if (!error && response.statusCode == 200) {
+      cb(font);
+    } else {
+      return
+    }
+  });
+}
 
 
 function loopFonts(fonts, cb){
-  for(var j = 0; j < fonts.length; j++) {
-    var fontName = fonts[j].fontName.replace(' ', '+');
-    var fontVersions = fonts[j].fontVersions;
-    var fontSubset = fonts[j].fontSubset;
+  // for(var j = 0; j < fonts.length; j++) {
+    var fontName = fonts.fontName.replace(' ', '+');
+    var fontVersions = fonts.fontVersions;
+    var fontSubset = fonts.fontSubset;
 
     cssTemplate += [
-      "/* --- " + fonts[j].fontName + " --- */\n\n"
+      "/* --- " + fonts.fontName + " --- */\n\n"
     ].join('\n');
 
     // Loop through the specified font versions
     for(var k = 0; k < fontVersions.length; k++){
-      var googleFontsUrl = "http://fonts.googleapis.com/css?family=" + fontName;
+      var googleFontsUrl = googleFontsBase + fontName;
       var version = fontVersions[k];
       if (fontVersions != null) {
         googleFontsUrl += ":" + version;
@@ -100,6 +127,7 @@ function loopFonts(fonts, cb){
         googleFontsUrl += ":" + version;
       }
       if (fontSubset != null) { googleFontsUrl += "&subset=" + fontSubset; }
+
 
       var fontOptions = {
         "fileNamePrimary": fontName.replace('+', '-'),
@@ -128,8 +156,9 @@ function loopFonts(fonts, cb){
         "       url('" + fontLocation + ".svg#" + fontOptions["fontName"] + "') format('svg');",
         '}\n\n'
       ].join('\n');
+      fs.writeFile(stylesLocation, cssTemplate);
 
-      console.log('Getting fonts from ' + googleFontsUrl);
+      console.log('Getting fonts from ' + chalk.cyan(googleFontsUrl));
 
       // Loop through the user agents to get the right font extension
       for(var i = 0; i < userAgentMap.length; i++) {
@@ -147,7 +176,7 @@ function loopFonts(fonts, cb){
         cb(options, fontOptions, ext);
       }
     }
-  }
+  // }
 }
 
 
@@ -158,9 +187,6 @@ function loopFontUrls(options, fontOptions, ext, cb){
       var fontRegExpUrl = /url\(([^\)]+)\)/gm;
       var fontUrl = fontRegExpUrl.exec(body)[1];
       cb(fontUrl, fontOptions, ext);
-
-    } else {
-      console.log("FONT NOT FOUND");
     }
   });
 }
@@ -181,6 +207,6 @@ function downloadFont(fontUrl, fontOptions, ext) {
     })
     .pipe(fs.createWriteStream(mainFontsFolder + "/" + fontFolder + "/" + fontFile))
     .on('close', function() {
-      console.log("Font file " + fontFile + " created with success!");
+      console.log("Font file " + chalk.cyan(fontFile) + " created with " + chalk.green("success!"));
     });
 }
