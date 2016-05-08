@@ -16,7 +16,7 @@ var stylesLocation = stylesFolder + '/'+ stylesFileName + '.' + stylesFileExt;
 
 var fonts = [{
     "fontName": "Open Sans",
-    "fontVersions": ["100", "400","600", "700", "300italic", "400italic"],
+    "fontVersions": ["300", "400","600", "700", "300italic", "400italic"],
     "fontSubset": null
   },{
     "fontName": "Lato",
@@ -72,119 +72,121 @@ var weightMap = {
 var cssTemplate = [];
 
 
+getGoogleFonts(fonts, function(){
 
+});
 
-
-// Getting the font
-fontExists(fonts, function(font, googleFontsUrl){
-  isFont(font, googleFontsUrl, function(font){
-    loopFonts(font, function(options, fontOptions, ext){
-      loopFontUrls(options, fontOptions, ext, function(fontUrl, fontOptions, ext){
-        downloadFont(fontUrl, fontOptions, ext)
-      });
-    })
-  })
-})
-
-
-
-function fontExists(fonts, cb) {
+function getGoogleFonts(fonts) {
   for(var i = 0; i < fonts.length; i++) {
     var font = fonts[i];
     var fontName = font.fontName.replace(' ', '+');
     var googleFontsUrl = googleFontsBase + fontName;
+    var fontOptions = {};
 
-    cb(font, googleFontsUrl)
+    // Check if base font exists (ex: http://fonts.googleapis.com/css?family=Lato)
+    isFont(font, googleFontsUrl, fontOptions, function(font, googleFontsUrl, fontOptions){
 
-  }
+      var fontName = font.fontName.replace(' ', '+');
+      var fontVersions = font.fontVersions;
+      var fontSubset = font.fontSubset;
+
+
+      // CSS Declaration Title
+      cssTemplate += [
+        "/* --- " + font.fontName + " --- */\n\n"
+      ].join('\n');
+
+
+      // console.log(chalk.bgGreen.white(" Looking for font: " + font.fontName + " "));
+
+      // Font versions loop (ex: 400, 400italic)
+      for(var k = 0; k < fontVersions.length; k++){
+        googleFontsUrl = googleFontsBase + fontName;
+        var version = fontVersions[k];
+        if (fontVersions != null) {
+          googleFontsUrl += ":" + version;
+        } else {
+          version = ["400"];
+          googleFontsUrl += ":" + version;
+        }
+        if (fontSubset != null) { googleFontsUrl += "&subset=" + fontSubset; }
+
+        fontOptions = {
+          "fileNamePrimary": fontName.replace('+', '-'),
+          "fileNameSecondary": weightMap[version][0],
+          "fontFolder": fontName.toLowerCase().replace('+', ''),
+          "fontName": fontName.replace('+', '-') + '-' + weightMap[version][0],
+          "fontFamily": fontName.replace('+', ''),
+          "fontStyle": weightMap[version][2],
+          "fontWeight": weightMap[version][1]
+        }
+
+
+        // Check if font version exists (ex: http://fonts.googleapis.com/css?family=Lato:400italic)
+        isFont(font, googleFontsUrl, fontOptions, function(font, googleFontsUrl, fontOptions){
+
+          // Creating dirs
+          var fontLocation = "../" + mainFontsFolder + "/" + fontOptions["fontFolder"] + "/" + fontOptions["fontName"];
+          mkdirp(mainFontsFolder + "/" + fontOptions["fontFolder"]);
+          mkdirp(stylesFolder);
+
+          cssTemplate += [
+            "@font-face {",
+            "  font-family: '" + fontOptions["fontFamily"] + "';",
+            "  font-style: " + fontOptions["fontStyle"] + ";",
+            "  font-weight: " + fontOptions["fontWeight"] + ";",
+            "  src: url('" + fontLocation + ".eot');",
+            "  src: url('" + fontLocation + ".woff2') format('woff2'),",
+            "       url('" + fontLocation + ".woff') format('woff'),",
+            "       url('" + fontLocation + ".ttf') format('truetype'),",
+            "       url('" + fontLocation + ".svg#" + fontOptions["fontName"] + "') format('svg');",
+            '}\n\n'
+          ].join('\n');
+          fs.writeFile(stylesLocation, cssTemplate);
+
+
+
+          for(var i = 0; i < userAgentMap.length; i++) {
+            var userAgent = userAgentMap[i];
+            var ext = userAgent.extension;
+            var ua = userAgent.userAgent;
+            var options = {
+              url: googleFontsUrl,
+              headers: {
+                'User-Agent': ua
+              }
+            };
+
+            // Getting the font
+            checkToDownload(options, fontOptions, ext, function(fontUrl, fontOptions, ext){
+              downloadFont(fontUrl, fontOptions, ext);
+            })
+          }
+
+
+        }) // end font version check
+
+      } // end font versions loop
+
+
+    }) // end base font check
+
+  } // end base font loop
 }
 
-function isFont(font, googleFontsUrl, cb){
+
+function isFont(font, googleFontsUrl, fontOptions, cb){
   request(googleFontsUrl, function (error, response, body) {
     if (!error && response.statusCode == 200) {
-      cb(font);
+      console.log('Getting fonts from ' + chalk.cyan(googleFontsUrl));
+      cb(font, googleFontsUrl, fontOptions);
     } else {
-      return
+      console.log('Doesn\'t exist ' + chalk.red(googleFontsUrl));
     }
   });
 }
 
-
-function loopFonts(fonts, cb){
-  var fontName = fonts.fontName.replace(' ', '+');
-  var fontVersions = fonts.fontVersions;
-  var fontSubset = fonts.fontSubset;
-
-  cssTemplate += [
-    "/* --- " + fonts.fontName + " --- */\n\n"
-  ].join('\n');
-
-  // Loop through the specified font versions
-  for(var k = 0; k < fontVersions.length; k++){
-    var googleFontsUrl = googleFontsBase + fontName;
-    var version = fontVersions[k];
-    if (fontVersions != null) {
-      googleFontsUrl += ":" + version;
-    } else {
-      version = ["400"];
-      googleFontsUrl += ":" + version;
-    }
-    if (fontSubset != null) { googleFontsUrl += "&subset=" + fontSubset; }
-
-
-    var fontOptions = {
-      "fileNamePrimary": fontName.replace('+', '-'),
-      "fileNameSecondary": weightMap[version][0],
-      "fontFolder": fontName.toLowerCase().replace('+', ''),
-      "fontName": fontName.replace('+', '-') + '-' + weightMap[version][0],
-      "fontFamily": fontName.replace('+', ''),
-      "fontStyle": weightMap[version][2],
-      "fontWeight": weightMap[version][1],
-      "ext": ext
-    }
-
-    var fontLocation = "../" + mainFontsFolder + "/" + fontOptions["fontFolder"] + "/" + fontOptions["fontName"];
-    mkdirp(mainFontsFolder + "/" + fontOptions["fontFolder"]);
-    mkdirp(stylesFolder);
-
-    cssTemplate += [
-      "@font-face {",
-      "  font-family: '" + fontOptions["fontFamily"] + "';",
-      "  font-style: " + fontOptions["fontStyle"] + ";",
-      "  font-weight: " + fontOptions["fontWeight"] + ";",
-      "  src: url('" + fontLocation + ".eot');",
-      "  src: url('" + fontLocation + ".woff2') format('woff2'),",
-      "       url('" + fontLocation + ".woff') format('woff'),",
-      "       url('" + fontLocation + ".ttf') format('truetype'),",
-      "       url('" + fontLocation + ".svg#" + fontOptions["fontName"] + "') format('svg');",
-      '}\n\n'
-    ].join('\n');
-    fs.writeFile(stylesLocation, cssTemplate);
-
-
-    console.log('Getting fonts from ' + chalk.cyan(googleFontsUrl));
-
-    // Loop through the user agents to get the right font extension
-    for(var i = 0; i < userAgentMap.length; i++) {
-      var userAgent = userAgentMap[i];
-      var ext = userAgent.extension;
-      var ua = userAgent.userAgent;
-      var options = {
-        url: googleFontsUrl,
-        headers: {
-          'User-Agent': ua
-        }
-      };
-
-      // Getting the font
-      cb(options, fontOptions, ext);
-    }
-  }
-}
-
-
-
-function loopFontUrls(options, fontOptions, ext, cb){
+function checkToDownload(options, fontOptions, ext, cb) {
   request(options, function (error, response, body) {
     if (!error && response.statusCode == 200) {
       var fontRegExpUrl = /url\(([^\)]+)\)/gm;
@@ -193,7 +195,6 @@ function loopFontUrls(options, fontOptions, ext, cb){
     }
   });
 }
-
 
 
 function downloadFont(fontUrl, fontOptions, ext) {
@@ -212,4 +213,32 @@ function downloadFont(fontUrl, fontOptions, ext) {
     .on('close', function() {
       console.log("Font file " + chalk.cyan(fontFile) + " created with " + chalk.green("success!"));
     });
+}
+
+
+
+function writeStyles(cssTemplate, stylesLocation, fontOptions, fontLocation, cb){
+  // Main css template
+  cssTemplate += [
+    "@font-face {",
+    "  font-family: '" + fontOptions["fontFamily"] + "';",
+    "  font-style: " + fontOptions["fontStyle"] + ";",
+    "  font-weight: " + fontOptions["fontWeight"] + ";",
+    "  src: url('" + fontLocation + ".eot');",
+    "  src: url('" + fontLocation + ".woff2') format('woff2'),",
+    "       url('" + fontLocation + ".woff') format('woff'),",
+    "       url('" + fontLocation + ".ttf') format('truetype'),",
+    "       url('" + fontLocation + ".svg#" + fontOptions["fontName"] + "') format('svg');",
+    '}\n\n'
+  ].join('\n');
+
+  cb(stylesLocation, cssTemplate);
+}
+
+
+module.exports = {
+  getGoogleFonts: getGoogleFonts,
+  isFont: isFont,
+  checkToDownload: checkToDownload,
+  downloadFont: downloadFont
 }
