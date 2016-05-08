@@ -5,7 +5,8 @@ var mkdirp  = require('mkdirp'),
     fs      = require('fs'),
     _       = require('lodash'),
     http    = require('http'),
-    url     = require('url');
+    url     = require('url')
+    async   = require('async');
 
 var mainFontsFolder = "fonts";
 var stylesFolder = "css";
@@ -15,7 +16,7 @@ var stylesLocation = stylesFolder + '/'+ stylesFileName + '.' + stylesFileExt;
 
 var fonts = [{
     "fontName": "Open Sans",
-    "fontVersions": ["200", "400","600", "700", "300italic", "400italic"],
+    "fontVersions": ["100", "400","600", "700", "300italic", "400italic"],
     "fontSubset": null
   },{
     "fontName": "Lato",
@@ -71,8 +72,11 @@ var weightMap = {
 var cssTemplate = [];
 
 
+
+
+
 // Getting the font
-exists(fonts, function(font, googleFontsUrl){
+fontExists(fonts, function(font, googleFontsUrl){
   isFont(font, googleFontsUrl, function(font){
     loopFonts(font, function(options, fontOptions, ext){
       loopFontUrls(options, fontOptions, ext, function(fontUrl, fontOptions, ext){
@@ -84,7 +88,7 @@ exists(fonts, function(font, googleFontsUrl){
 
 
 
-function exists(fonts, cb) {
+function fontExists(fonts, cb) {
   for(var i = 0; i < fonts.length; i++) {
     var font = fonts[i];
     var fontName = font.fontName.replace(' ', '+');
@@ -107,76 +111,75 @@ function isFont(font, googleFontsUrl, cb){
 
 
 function loopFonts(fonts, cb){
-  // for(var j = 0; j < fonts.length; j++) {
-    var fontName = fonts.fontName.replace(' ', '+');
-    var fontVersions = fonts.fontVersions;
-    var fontSubset = fonts.fontSubset;
+  var fontName = fonts.fontName.replace(' ', '+');
+  var fontVersions = fonts.fontVersions;
+  var fontSubset = fonts.fontSubset;
+
+  cssTemplate += [
+    "/* --- " + fonts.fontName + " --- */\n\n"
+  ].join('\n');
+
+  // Loop through the specified font versions
+  for(var k = 0; k < fontVersions.length; k++){
+    var googleFontsUrl = googleFontsBase + fontName;
+    var version = fontVersions[k];
+    if (fontVersions != null) {
+      googleFontsUrl += ":" + version;
+    } else {
+      version = ["400"];
+      googleFontsUrl += ":" + version;
+    }
+    if (fontSubset != null) { googleFontsUrl += "&subset=" + fontSubset; }
+
+
+    var fontOptions = {
+      "fileNamePrimary": fontName.replace('+', '-'),
+      "fileNameSecondary": weightMap[version][0],
+      "fontFolder": fontName.toLowerCase().replace('+', ''),
+      "fontName": fontName.replace('+', '-') + '-' + weightMap[version][0],
+      "fontFamily": fontName.replace('+', ''),
+      "fontStyle": weightMap[version][2],
+      "fontWeight": weightMap[version][1],
+      "ext": ext
+    }
+
+    var fontLocation = "../" + mainFontsFolder + "/" + fontOptions["fontFolder"] + "/" + fontOptions["fontName"];
+    mkdirp(mainFontsFolder + "/" + fontOptions["fontFolder"]);
+    mkdirp(stylesFolder);
 
     cssTemplate += [
-      "/* --- " + fonts.fontName + " --- */\n\n"
+      "@font-face {",
+      "  font-family: '" + fontOptions["fontFamily"] + "';",
+      "  font-style: " + fontOptions["fontStyle"] + ";",
+      "  font-weight: " + fontOptions["fontWeight"] + ";",
+      "  src: url('" + fontLocation + ".eot');",
+      "  src: url('" + fontLocation + ".woff2') format('woff2'),",
+      "       url('" + fontLocation + ".woff') format('woff'),",
+      "       url('" + fontLocation + ".ttf') format('truetype'),",
+      "       url('" + fontLocation + ".svg#" + fontOptions["fontName"] + "') format('svg');",
+      '}\n\n'
     ].join('\n');
-
-    // Loop through the specified font versions
-    for(var k = 0; k < fontVersions.length; k++){
-      var googleFontsUrl = googleFontsBase + fontName;
-      var version = fontVersions[k];
-      if (fontVersions != null) {
-        googleFontsUrl += ":" + version;
-      } else {
-        version = ["400"];
-        googleFontsUrl += ":" + version;
-      }
-      if (fontSubset != null) { googleFontsUrl += "&subset=" + fontSubset; }
+    fs.writeFile(stylesLocation, cssTemplate);
 
 
-      var fontOptions = {
-        "fileNamePrimary": fontName.replace('+', '-'),
-        "fileNameSecondary": weightMap[version][0],
-        "fontFolder": fontName.toLowerCase().replace('+', ''),
-        "fontName": fontName.replace('+', '-') + '-' + weightMap[version][0],
-        "fontFamily": fontName.replace('+', ''),
-        "fontStyle": weightMap[version][2],
-        "fontWeight": weightMap[version][1],
-        "ext": ext
-      }
+    console.log('Getting fonts from ' + chalk.cyan(googleFontsUrl));
 
-      var fontLocation = "../" + mainFontsFolder + "/" + fontOptions["fontFolder"] + "/" + fontOptions["fontName"];
-      mkdirp(mainFontsFolder + "/" + fontOptions["fontFolder"]);
-      mkdirp(stylesFolder);
+    // Loop through the user agents to get the right font extension
+    for(var i = 0; i < userAgentMap.length; i++) {
+      var userAgent = userAgentMap[i];
+      var ext = userAgent.extension;
+      var ua = userAgent.userAgent;
+      var options = {
+        url: googleFontsUrl,
+        headers: {
+          'User-Agent': ua
+        }
+      };
 
-      cssTemplate += [
-        "@font-face {",
-        "  font-family: '" + fontOptions["fontFamily"] + "';",
-        "  font-style: " + fontOptions["fontStyle"] + ";",
-        "  font-weight: " + fontOptions["fontWeight"] + ";",
-        "  src: url('" + fontLocation + ".eot');",
-        "  src: url('" + fontLocation + ".woff2') format('woff2'),",
-        "       url('" + fontLocation + ".woff') format('woff'),",
-        "       url('" + fontLocation + ".ttf') format('truetype'),",
-        "       url('" + fontLocation + ".svg#" + fontOptions["fontName"] + "') format('svg');",
-        '}\n\n'
-      ].join('\n');
-      fs.writeFile(stylesLocation, cssTemplate);
-
-      console.log('Getting fonts from ' + chalk.cyan(googleFontsUrl));
-
-      // Loop through the user agents to get the right font extension
-      for(var i = 0; i < userAgentMap.length; i++) {
-        var userAgent = userAgentMap[i];
-        var ext = userAgent.extension;
-        var ua = userAgent.userAgent;
-        var options = {
-          url: googleFontsUrl,
-          headers: {
-            'User-Agent': ua
-          }
-        };
-
-        // Getting the font
-        cb(options, fontOptions, ext);
-      }
+      // Getting the font
+      cb(options, fontOptions, ext);
     }
-  // }
+  }
 }
 
 
