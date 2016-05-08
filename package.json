@@ -1,0 +1,27 @@
+{
+  "name": "gulp-get-google-fonts",
+  "version": "0.0.1",
+  "description": "A gulp plugin to download google fonts.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Michaël de Boevé",
+  "homepage": "",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "bugs": {
+    "url": ""
+  },
+  "license": "MIT",
+  "dependencies": {
+    "lodash": "^3.1.2",
+    "mkdirp": "^0.5.1",
+    "request": "^2.72.0"
+  },
+  "devDependencies": {
+    "gulp": "^3.9.0"
+  }
+}
