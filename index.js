@@ -1,18 +1,27 @@
-
+'use strict';
 var mkdirp  = require('mkdirp'),
     chalk   = require('chalk'),
     request = require('request'),
     fs      = require('fs'),
     _       = require('lodash'),
     http    = require('http'),
-    url     = require('url')
+    url     = require('url'),
     async   = require('async');
 
-var mainFontsFolder = "fonts";
-var stylesFolder = "css";
-var stylesFileName = 'fonts';
-var stylesFileExt = 'css';
-var stylesLocation = stylesFolder + '/'+ stylesFileName + '.' + stylesFileExt;
+var isFont          = require('./helpers/isFont'),
+    checkToDownload = require('./helpers/checkToDownload'),
+    downloadFont    = require('./helpers/downloadFont'),
+    writeStyles     = require('./helpers/writeStyles');
+
+
+
+// Options
+var mainFontsFolder = "fonts",
+    stylesFolder = "css",
+    stylesFileName = 'fonts',
+    stylesFileExt = 'css',
+    stylesLocation = stylesFolder + '/'+ stylesFileName + '.' + stylesFileExt;
+
 
 var fonts = [{
     "fontName": "Open Sans",
@@ -24,9 +33,16 @@ var fonts = [{
     "fontSubset": null
   },{
     "fontName": "Roboto",
-    "fontVersions": ["400"],
+    "fontVersions": ["400", "900"],
+    "fontSubset": null
+  },{
+    "fontName": "Roboto Slab",
+    "fontVersions": ["400italic", "400", "900"],
     "fontSubset": null
   }]
+
+
+// Constants
 
 var googleFontsBase = "http://fonts.googleapis.com/css?family=";
 
@@ -45,8 +61,7 @@ var userAgentMap = [{
   }, {
     extension: 'svg',
     userAgent: 'Mozilla/5.0 (iPad; U; CPU OS 3_2 like Mac OS X; en-us) AppleWebKit/531.21.10 (KHTML, like Gecko) Version/4.0.4 Mobile/7B334b Safari/531.21.10'
-}
-];
+  }];
 
 var weightMap = {
   "100": ["Thin", "100", "normal"],
@@ -72,6 +87,9 @@ var weightMap = {
 var cssTemplate = [];
 
 
+
+
+// Start
 getGoogleFonts(fonts, function(){
 
 });
@@ -158,8 +176,8 @@ function getGoogleFonts(fonts) {
             };
 
             // Getting the font
-            checkToDownload(options, fontOptions, ext, function(fontUrl, fontOptions, ext){
-              downloadFont(fontUrl, fontOptions, ext);
+            checkToDownload(options, fontOptions, ext, mainFontsFolder, function(fontUrl, fontOptions, ext, mainFontsFolder){
+              downloadFont(fontUrl, fontOptions, ext, mainFontsFolder);
             })
           }
 
@@ -172,73 +190,4 @@ function getGoogleFonts(fonts) {
     }) // end base font check
 
   } // end base font loop
-}
-
-
-function isFont(font, googleFontsUrl, fontOptions, cb){
-  request(googleFontsUrl, function (error, response, body) {
-    if (!error && response.statusCode == 200) {
-      console.log('Getting fonts from ' + chalk.cyan(googleFontsUrl));
-      cb(font, googleFontsUrl, fontOptions);
-    } else {
-      console.log('Doesn\'t exist ' + chalk.red(googleFontsUrl));
-    }
-  });
-}
-
-function checkToDownload(options, fontOptions, ext, cb) {
-  request(options, function (error, response, body) {
-    if (!error && response.statusCode == 200) {
-      var fontRegExpUrl = /url\(([^\)]+)\)/gm;
-      var fontUrl = fontRegExpUrl.exec(body)[1];
-      cb(fontUrl, fontOptions, ext);
-    }
-  });
-}
-
-
-function downloadFont(fontUrl, fontOptions, ext) {
-  var n = fontUrl.lastIndexOf('/');
-  var gFontName = fontUrl.substring(n + 1);
-  var fontFolder = fontOptions["fontFolder"];
-  var fontFile = fontOptions["fontName"] + '.' + ext;
-
-
-  request
-    .get(fontUrl)
-    .on('error', function(err) {
-      console.log(err)
-    })
-    .pipe(fs.createWriteStream(mainFontsFolder + "/" + fontFolder + "/" + fontFile))
-    .on('close', function() {
-      console.log("Font file " + chalk.cyan(fontFile) + " created with " + chalk.green("success!"));
-    });
-}
-
-
-
-function writeStyles(cssTemplate, stylesLocation, fontOptions, fontLocation, cb){
-  // Main css template
-  cssTemplate += [
-    "@font-face {",
-    "  font-family: '" + fontOptions["fontFamily"] + "';",
-    "  font-style: " + fontOptions["fontStyle"] + ";",
-    "  font-weight: " + fontOptions["fontWeight"] + ";",
-    "  src: url('" + fontLocation + ".eot');",
-    "  src: url('" + fontLocation + ".woff2') format('woff2'),",
-    "       url('" + fontLocation + ".woff') format('woff'),",
-    "       url('" + fontLocation + ".ttf') format('truetype'),",
-    "       url('" + fontLocation + ".svg#" + fontOptions["fontName"] + "') format('svg');",
-    '}\n\n'
-  ].join('\n');
-
-  cb(stylesLocation, cssTemplate);
-}
-
-
-module.exports = {
-  getGoogleFonts: getGoogleFonts,
-  isFont: isFont,
-  checkToDownload: checkToDownload,
-  downloadFont: downloadFont
 }
